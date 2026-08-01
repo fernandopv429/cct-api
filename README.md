@@ -39,7 +39,12 @@ Busca híbrida (categoria + vigência + similaridade semântica).
 | `pergunta` | string | ✅ | Dúvida em linguagem natural. Ex.: "adicional noturno do vigilante" |
 | `categoria` | string | ❌ | `vigilancia` · `terceirizados` · `asseio_conservacao`. Omitir = todas |
 | `data_fato` | string `AAAA-MM-DD` | ❌ | Retorna só a CCT **vigente nessa data**. Omitir = todas as vigências |
+| `municipio` | string | ❌ | Município do caso (ex.: "Guarulhos"). CCTs **estaduais** sempre entram; **municipais/regionais** só entram se cobrirem esse município. Omitir = não filtra por região |
 | `limite` | inteiro (1–20) | ❌ | Quantidade de trechos. Default `6` |
+
+> **Por que `municipio` importa:** algumas categorias têm CCT **diferente por região**
+> (ex.: asseio/conservação do SEAC-SP tem convenção própria por cidade/região). Passe o
+> município do caso para não pegar a regra de outra localidade.
 
 ### Exemplo — cURL
 
@@ -68,6 +73,7 @@ const resp = await fetch("https://ccts.nexusdevhub.com/consultar-cct", {
     pergunta: "adicional noturno do vigilante",
     categoria: "vigilancia",      // opcional
     data_fato: "2024-06-01",      // opcional
+    municipio: "São Paulo",       // opcional (filtra CCTs regionais)
     limite: 3,                     // opcional
   }),
 });
@@ -111,6 +117,9 @@ const data = await resp.json();
 | `ano_base` | Ano-base da convenção |
 | `vigencia_inicio` / `vigencia_fim` | Período de vigência (datas) |
 | `sindicato_laboral` / `sindicato_patronal` | Sindicatos signatários |
+| `base_territorial` | Descrição da abrangência territorial |
+| `abrangencia` | `estadual` (todo o estado) ou `municipal` (municípios específicos) |
+| `municipios` | Lista de municípios cobertos (quando `municipal`); `null` = estadual |
 | `fonte_url` | Link do PDF oficial de origem |
 | `clausula_ref` | Ex.: "CLÁUSULA DÉCIMA TERCEIRA" |
 | `clausula_titulo` | Ex.: "ADICIONAL NOTURNO" |

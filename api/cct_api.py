@@ -63,6 +63,9 @@ class ConsultaRequest(BaseModel):
     data_fato: Optional[str] = Field(
         None, description="AAAA-MM-DD — filtra a CCT vigente nessa data"
     )
+    municipio: Optional[str] = Field(
+        None, description="Município do caso. CCTs estaduais sempre entram; municipais só se cobrirem"
+    )
     limite: int = Field(6, ge=1, le=20)
 
 
@@ -88,12 +91,14 @@ async def consultar(req: ConsultaRequest) -> Dict[str, Any]:
 
     vetor = await embed_text(req.pergunta)
     resultados: List[Dict[str, Any]] = await cct_store.buscar(
-        embedding=vetor, categoria=req.categoria, data_fato=df, limite=req.limite
+        embedding=vetor, categoria=req.categoria, data_fato=df,
+        municipio=req.municipio, limite=req.limite,
     )
     return {
         "pergunta": req.pergunta,
         "categoria": req.categoria,
         "data_fato": req.data_fato,
+        "municipio": req.municipio,
         "total": len(resultados),
         "resultados": resultados,
     }

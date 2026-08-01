@@ -1,5 +1,6 @@
 import os
 import logging
+import unicodedata
 from datetime import date
 from typing import Optional, List, Dict, Any
 
@@ -9,6 +10,15 @@ from pgvector.asyncpg import register_vector
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
+
+
+def normalizar_municipio(nome: str) -> str:
+    """Normaliza nome de município para comparação: minúsculo, sem acento, sem espaços nas pontas.
+    Ex.: 'São Paulo' -> 'sao paulo'."""
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFKD", nome) if not unicodedata.combining(c)
+    )
+    return sem_acento.strip().lower()
 
 # Schema também é criado aqui (idempotente) para que o banco de vetor
 # possa ser recriado do zero sem depender de um passo manual.
@@ -28,8 +38,13 @@ CREATE TABLE IF NOT EXISTS cct_documentos (
     titulo              TEXT,
     fonte_url           TEXT,
     arquivo_hash        TEXT UNIQUE,
+    abrangencia         TEXT,           -- 'estadual' | 'municipal'
+    municipios          TEXT[],         -- municípios cobertos (normalizados); NULL = estadual/todos
     criado_em           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Migração idempotente para bancos criados antes destas colunas:
+ALTER TABLE cct_documentos ADD COLUMN IF NOT EXISTS abrangencia TEXT;
+ALTER TABLE cct_documentos ADD COLUMN IF NOT EXISTS municipios TEXT[];
 
 CREATE TABLE IF NOT EXISTS cct_chunks (
     id              BIGSERIAL PRIMARY KEY,
@@ -45,6 +60,7 @@ CREATE TABLE IF NOT EXISTS cct_chunks (
 CREATE INDEX IF NOT EXISTS idx_cct_chunks_documento ON cct_chunks(documento_id);
 CREATE INDEX IF NOT EXISTS idx_cct_docs_categoria   ON cct_documentos(categoria);
 CREATE INDEX IF NOT EXISTS idx_cct_docs_vigencia    ON cct_documentos(vigencia_inicio, vigencia_fim);
+CREATE INDEX IF NOT EXISTS idx_cct_docs_municipios  ON cct_documentos USING gin (municipios);
 CREATE INDEX IF NOT EXISTS idx_cct_chunks_embedding ON cct_chunks USING hnsw (embedding vector_cosine_ops);
 """
 
@@ -94,7 +110,14 @@ async def inserir_documento(
     titulo: Optional[str],
     fonte_url: Optional[str],
     arquivo_hash: str,
+    abrangencia: Optional[str] = None,
+    municipios: Optional[List[str]] = None,
 ) -> int:
+    # Normaliza a lista de municípios (minúsculo, sem acento). NULL/vazia = estadual/todos.
+    municipios_norm = (
+        [normalizar_municipio(m) for m in municipios if m and m.strip()]
+        if municipios else None
+    ) or None
     pool = await get_pool()
     async with pool.acquire() as conn:
         return await conn.fetchval(
@@ -102,13 +125,13 @@ async def inserir_documento(
             INSERT INTO cct_documentos
                 (categoria, sindicato_laboral, sindicato_patronal, base_territorial,
                  ano_base, vigencia_inicio, vigencia_fim, numero_registro_mte,
-                 titulo, fonte_url, arquivo_hash)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                 titulo, fonte_url, arquivo_hash, abrangencia, municipios)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             RETURNING id
             """,
             categoria, sindicato_laboral, sindicato_patronal, base_territorial,
             ano_base, vigencia_inicio, vigencia_fim, numero_registro_mte,
-            titulo, fonte_url, arquivo_hash,
+            titulo, fonte_url, arquivo_hash, abrangencia, municipios_norm,
         )
 
 
@@ -143,9 +166,14 @@ async def buscar(
     embedding: List[float],
     categoria: Optional[str] = None,
     data_fato: Optional[date] = None,
+    municipio: Optional[str] = None,
     limite: int = 8,
 ) -> List[Dict[str, Any]]:
-    """Busca híbrida: filtra por categoria/vigência e ordena por similaridade de cosseno."""
+    """Busca híbrida: filtra por categoria/vigência/município e ordena por similaridade de cosseno.
+
+    Município: CCTs estaduais (municipios NULL) sempre entram; as regionais/municipais
+    só entram se cobrirem o município informado.
+    """
     condicoes = []
     params: List[Any] = [embedding]
     if categoria:
@@ -159,6 +187,11 @@ async def buscar(
             f"(d.vigencia_inicio IS NULL OR d.vigencia_inicio <= ${idx}) "
             f"AND (d.vigencia_fim IS NULL OR d.vigencia_fim >= ${idx})"
         )
+    if municipio:
+        params.append(normalizar_municipio(municipio))
+        idx = len(params)
+        # estadual (municipios NULL) sempre entra; municipal só se cobrir o município
+        condicoes.append(f"(d.municipios IS NULL OR d.municipios @> ARRAY[${idx}]::text[])")
     where = ("WHERE " + " AND ".join(condicoes)) if condicoes else ""
     params.append(limite)
 
@@ -167,7 +200,8 @@ async def buscar(
         rows = await conn.fetch(
             f"""
             SELECT d.titulo, d.categoria, d.ano_base, d.vigencia_inicio, d.vigencia_fim,
-                   d.sindicato_laboral, d.sindicato_patronal, d.fonte_url,
+                   d.sindicato_laboral, d.sindicato_patronal, d.base_territorial,
+                   d.abrangencia, d.municipios, d.fonte_url,
                    c.clausula_ref, c.clausula_titulo, c.conteudo,
                    1 - (c.embedding <=> $1) AS similaridade
             FROM cct_chunks c
