@@ -66,6 +66,15 @@ class ConsultaRequest(BaseModel):
     municipio: Optional[str] = Field(
         None, description="Município do caso. CCTs estaduais sempre entram; municipais só se cobrirem"
     )
+    similaridade_minima: float = Field(
+        cct_store.SIMILARIDADE_MINIMA_PADRAO,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Corte mínimo de relevância (0–1). Trechos abaixo disso são descartados para não "
+            "induzir a IA a redigir sobre assunto inexistente na CCT. Use 0 para desligar."
+        ),
+    )
     limite: int = Field(6, ge=1, le=20)
 
 
@@ -93,12 +102,21 @@ async def consultar(req: ConsultaRequest) -> Dict[str, Any]:
     resultados: List[Dict[str, Any]] = await cct_store.buscar(
         embedding=vetor, categoria=req.categoria, data_fato=df,
         municipio=req.municipio, limite=req.limite,
+        similaridade_minima=req.similaridade_minima,
     )
-    return {
+    resposta: Dict[str, Any] = {
         "pergunta": req.pergunta,
         "categoria": req.categoria,
         "data_fato": req.data_fato,
         "municipio": req.municipio,
+        "similaridade_minima": req.similaridade_minima,
         "total": len(resultados),
         "resultados": resultados,
     }
+    if not resultados:
+        # Sinaliza para o consumidor (IA) que não há base para redigir — evita "inventar".
+        resposta["aviso"] = (
+            "Nenhum trecho atingiu a relevância mínima para os filtros informados. "
+            "O assunto pode não estar previsto nesta CCT — não redija sem fundamento."
+        )
+    return resposta

@@ -40,7 +40,19 @@ Busca híbrida (categoria + vigência + similaridade semântica).
 | `categoria` | string | ❌ | `vigilancia` · `terceirizados` · `asseio_conservacao`. Omitir = todas |
 | `data_fato` | string `AAAA-MM-DD` | ❌ | Retorna só a CCT **vigente nessa data**. Omitir = todas as vigências |
 | `municipio` | string | ❌ | Município do caso (ex.: "Guarulhos"). CCTs **estaduais** sempre entram; **municipais/regionais** só entram se cobrirem esse município. Omitir = não filtra por região |
+| `similaridade_minima` | número (0–1) | ❌ | Corte de relevância. Default `0.40`. Trechos abaixo são descartados. Use `0` para desligar |
 | `limite` | inteiro (1–20) | ❌ | Quantidade de trechos. Default `6` |
+
+> **Sobre `similaridade_minima`:** a busca vetorial sempre devolve "o mais próximo",
+> mesmo quando o assunto não existe na convenção. O corte padrão de `0.40` funciona como
+> piso de descarte (elimina resultados claramente fora de contexto) sem barrar consultas
+> legítimas. **Ele não é um detector confiável de "assunto inexistente"**: em calibração,
+> perguntas válidas pontuaram de 0.42 a 0.70 e ruído chegou a 0.47 — as faixas se
+> sobrepõem. Perguntas curtas contra cláusulas longas naturalmente pontuam mais baixo.
+>
+> Por isso, **quem consome deve olhar o campo `similaridade` de cada resultado**:
+> acima de ~0.60 é forte; entre 0.45 e 0.60 confira o texto; abaixo de 0.45 trate como
+> indício fraco. Quando nada passa do corte, a resposta traz um campo `aviso`.
 
 > **Por que `municipio` importa:** algumas categorias têm CCT **diferente por região**
 > (ex.: asseio/conservação do SEAC-SP tem convenção própria por cidade/região). Passe o

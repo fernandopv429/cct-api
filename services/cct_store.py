@@ -161,6 +161,12 @@ async def inserir_chunks(documento_id: int, chunks: List[Dict[str, Any]]) -> int
     return len(rows)
 
 
+# Corte mínimo de similaridade. Busca vetorial sempre devolve "o mais próximo",
+# mesmo quando o assunto não existe na CCT — abaixo deste valor o trecho é ruído
+# e não deve chegar à IA que redige.
+SIMILARIDADE_MINIMA_PADRAO = 0.40
+
+
 async def buscar(
     *,
     embedding: List[float],
@@ -168,11 +174,14 @@ async def buscar(
     data_fato: Optional[date] = None,
     municipio: Optional[str] = None,
     limite: int = 8,
+    similaridade_minima: float = SIMILARIDADE_MINIMA_PADRAO,
 ) -> List[Dict[str, Any]]:
     """Busca híbrida: filtra por categoria/vigência/município e ordena por similaridade de cosseno.
 
     Município: CCTs estaduais (municipios NULL) sempre entram; as regionais/municipais
     só entram se cobrirem o município informado.
+
+    similaridade_minima: descarta trechos abaixo do corte (0 desliga o filtro).
     """
     condicoes = []
     params: List[Any] = [embedding]
@@ -192,6 +201,9 @@ async def buscar(
         idx = len(params)
         # estadual (municipios NULL) sempre entra; municipal só se cobrir o município
         condicoes.append(f"(d.municipios IS NULL OR d.municipios @> ARRAY[${idx}]::text[])")
+    if similaridade_minima and similaridade_minima > 0:
+        params.append(float(similaridade_minima))
+        condicoes.append(f"(1 - (c.embedding <=> $1)) >= ${len(params)}")
     where = ("WHERE " + " AND ".join(condicoes)) if condicoes else ""
     params.append(limite)
 
