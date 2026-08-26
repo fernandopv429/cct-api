@@ -1,17 +1,21 @@
 """Camada de embeddings — provedor plugável (Voyage AI ou OpenAI).
 
-Selecione com a env EMBEDDING_PROVIDER: "voyage" (padrão) ou "openai".
+Selecione com a env EMBEDDING_PROVIDER: "openai" (padrão) ou "voyage".
+O padrão é openai porque a coluna do banco está em 1536 dimensões — trocar de
+provedor exige re-embeddar tudo (scripts/reembeddar.py).
 A dimensão do vetor DEVE casar com a coluna `embedding vector(N)` no banco.
 """
 import os
+import asyncio
 import logging
+import random
 from typing import List
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-PROVIDER = os.getenv("EMBEDDING_PROVIDER", "voyage").strip().lower()
+PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai").strip().lower()
 
 # Dimensões por modelo. Série 4 e 3.5 usam 1024 por padrão; OpenAI small usa 1536.
 _DIMS = {
@@ -26,16 +30,19 @@ _DIMS = {
     "text-embedding-3-large": 3072,
 }
 
-if PROVIDER == "openai":
-    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-else:
+if PROVIDER == "voyage":
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "voyage-4")
+else:
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", _DIMS.get(EMBEDDING_MODEL, 1024)))
 
 VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
-# A API do Voyage limita o tamanho do lote; 128 é seguro para todos os modelos.
-_LOTE_MAX = 128
+# Tamanho do lote. Contas Voyage SEM forma de pagamento têm limite de 3 RPM / 10K TPM,
+# então lotes grandes estouram o teto de tokens por minuto. Ajustável por env.
+_LOTE_MAX = int(os.getenv("EMBEDDING_LOTE", "96"))
+# Tentativas em caso de 429 (rate limit) com espera exponencial.
+_MAX_TENTATIVAS = int(os.getenv("EMBEDDING_MAX_TENTATIVAS", "6"))
 
 _openai_client = None
 
@@ -57,11 +64,18 @@ async def _voyage_lote(client: httpx.AsyncClient, textos: List[str], input_type:
     }
     if EMBEDDING_MODEL.startswith(("voyage-4", "voyage-3.5")):
         payload["output_dimension"] = EMBEDDING_DIM
-    resp = await client.post(
-        VOYAGE_URL,
-        headers={"Authorization": f"Bearer {os.environ['VOYAGE_API_KEY']}"},
-        json=payload,
-    )
+    headers = {"Authorization": f"Bearer {os.environ['VOYAGE_API_KEY']}"}
+    for tentativa in range(_MAX_TENTATIVAS):
+        resp = await client.post(VOYAGE_URL, headers=headers, json=payload)
+        if resp.status_code != 429:
+            break
+        # Rate limit: espera exponencial com jitter e tenta de novo.
+        espera = min(60.0, 2.0 ** tentativa) + random.uniform(0, 1.5)
+        logger.warning(
+            f"[Embeddings] Voyage 429 (tentativa {tentativa + 1}/{_MAX_TENTATIVAS}); "
+            f"aguardando {espera:.1f}s"
+        )
+        await asyncio.sleep(espera)
     if resp.status_code >= 400:
         logger.error(f"[Embeddings] Voyage {resp.status_code}: {resp.text[:300]}")
     resp.raise_for_status()

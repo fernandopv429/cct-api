@@ -10,7 +10,7 @@ linguagem natural e a API devolve as cláusulas mais relevantes, filtrando pela 
 | **Autenticação** | Header `X-API-Key` |
 | **Docs interativa** | `https://ccts.nexusdevhub.com/docs` (Swagger) |
 | **Conteúdo** | 18 CCTs · 2019–2027 |
-| **Embeddings** | Voyage AI `voyage-4` (1024 dimensões) |
+| **Embeddings** | OpenAI `text-embedding-3-small` (1536 dimensões) |
 
 ---
 

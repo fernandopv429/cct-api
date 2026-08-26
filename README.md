@@ -6,10 +6,10 @@ Dada uma pergunta em linguagem natural, retorna as cláusulas mais relevantes, f
 
 - **Base URL (produção):** `https://ccts.nexusdevhub.com`
 - **Docs interativa (Swagger):** `https://ccts.nexusdevhub.com/docs` · ReDoc: `/redoc`
-- **Stack:** FastAPI · asyncpg · pgvector · embeddings **Voyage AI** (`voyage-4`, 1024d)
+- **Stack:** FastAPI · asyncpg · pgvector · embeddings OpenAI (`text-embedding-3-small`, 1536d)
 
 ```
-pergunta ──► embedding (Voyage AI) ──► busca híbrida no pgvector ──► cláusulas + metadados
+pergunta ──► embedding (OpenAI) ──► busca híbrida no pgvector ──► cláusulas + metadados
                                     (categoria + vigência + similaridade)
 ```
 
@@ -179,16 +179,16 @@ curl https://ccts.nexusdevhub.com/health
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `VECTOR_DATABASE_URL` | ✅ | `postgres://usuario:senha@host:5435/postgres` (banco pgvector) |
-| `VOYAGE_API_KEY` | ✅ | Chave do Voyage AI (embedding da pergunta) |
+| `OPENAI_API_KEY` | ✅ | Chave OpenAI (embedding da pergunta) |
 | `CCT_API_KEY` | ✅ | Chave da API (header `X-API-Key`) |
-| `EMBEDDING_PROVIDER` | ❌ | `voyage` (default) ou `openai` |
-| `EMBEDDING_MODEL` | ❌ | Default `voyage-4` (1024d) |
+| `EMBEDDING_PROVIDER` | ❌ | `openai` (default) ou `voyage` |
+| `EMBEDDING_MODEL` | ❌ | Default `text-embedding-3-small` (1536d) |
 | `CCT_ALLOWED_ORIGINS` | ❌ | Origens CORS (default `*`) |
-| `OPENAI_API_KEY` | ❌ | Só se `EMBEDDING_PROVIDER=openai` |
+| `VOYAGE_API_KEY` | ❌ | Só se `EMBEDDING_PROVIDER=voyage` |
 
 > **Trocar de provedor exige reindexar.** A dimensão do vetor é fixa na coluna do
 > Postgres (Voyage=1024, OpenAI small=1536). Use
-> `python -m scripts.migrar_provedor_embedding --confirmar` e depois reingira.
+> `python -m scripts.reembeddar` (não destrutivo: re-embedda os textos já no banco).
 
 ## Deploy
 
