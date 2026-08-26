@@ -9,7 +9,8 @@ linguagem natural e a API devolve as cláusulas mais relevantes, filtrando pela 
 | **Base URL** | `https://ccts.nexusdevhub.com` |
 | **Autenticação** | Header `X-API-Key` |
 | **Docs interativa** | `https://ccts.nexusdevhub.com/docs` (Swagger) |
-| **Conteúdo** | 17 CCTs · 1.499 cláusulas · 2019–2027 |
+| **Conteúdo** | 18 CCTs · 2019–2027 |
+| **Embeddings** | Voyage AI `voyage-4` (1024 dimensões) |
 
 ---
 

@@ -7,6 +7,8 @@ from typing import Optional, List, Dict, Any
 import asyncpg
 from pgvector.asyncpg import register_vector
 
+from services.embeddings import EMBEDDING_DIM
+
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
@@ -22,7 +24,7 @@ def normalizar_municipio(nome: str) -> str:
 
 # Schema também é criado aqui (idempotente) para que o banco de vetor
 # possa ser recriado do zero sem depender de um passo manual.
-SCHEMA = """
+SCHEMA = f"""
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS cct_documentos (
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS cct_chunks (
     clausula_ref    TEXT,
     clausula_titulo TEXT,
     conteudo        TEXT NOT NULL,
-    embedding       vector(1536),
+    embedding       vector({EMBEDDING_DIM}),
     criado_em       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
