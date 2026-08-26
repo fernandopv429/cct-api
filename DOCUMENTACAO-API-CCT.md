@@ -9,7 +9,7 @@ linguagem natural e a API devolve as cláusulas mais relevantes, filtrando pela 
 | **Base URL** | `https://ccts.nexusdevhub.com` |
 | **Autenticação** | Header `X-API-Key` |
 | **Docs interativa** | `https://ccts.nexusdevhub.com/docs` (Swagger) |
-| **Conteúdo** | 18 CCTs · 2019–2027 |
+| **Conteúdo** | 37 CCTs · 2019–2027 · 363 municípios |
 | **Embeddings** | OpenAI `text-embedding-3-small` (1536 dimensões) |
 
 ---
@@ -58,12 +58,13 @@ Comportamento hoje na base:
 |---|---|---|
 | `vigilancia` (SEEVISSP × SESVESP) | estadual | todo o estado de SP |
 | `terceirizados` (SINDEEPRES Geral) | estadual | todo o estado de SP |
-| `asseio_conservacao` (SIEMACO-SP × SEAC-SP) | **municipal** | **São Paulo (capital)** |
+| `asseio_conservacao` (SIEMACO-SP / locais × SEAC-SP) | **municipal** | **19 regiões, 363 municípios** |
 
 Exemplo prático:
 ```
-asseio_conservacao + municipio="São Paulo"  →  encontra a CCT
-asseio_conservacao + municipio="Guarulhos"  →  total: 0  (não temos a regional de Guarulhos)
+asseio_conservacao + municipio="São Paulo"  →  CCT SIEMACO-SP (capital)
+asseio_conservacao + municipio="Guarulhos"  →  CCT Guarulhos e Região (SEAC-SP)
+asseio_conservacao + municipio="Santos"     →  total: 0  (região não indexada)
 vigilancia         + municipio="Guarulhos"  →  encontra (é estadual, cobre tudo)
 ```
 

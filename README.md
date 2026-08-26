@@ -165,9 +165,15 @@ curl https://ccts.nexusdevhub.com/health
 
 | Categoria | Sindicatos | CCTs disponíveis |
 |---|---|---|
-| `vigilancia` | SEEVISSP × SESVESP | 2019 a 2027 |
-| `terceirizados` | SINDEEPRES (Geral) | 2020 a 2026 |
-| `asseio_conservacao` | SIEMACO-SP × SEAC-SP | 2019 a 2027 |
+| `vigilancia` | SEEVISSP × SESVESP | 2019 a 2027 (estadual) |
+| `terceirizados` | SINDEEPRES (Geral) | 2019 a 2026 (estadual) |
+| `asseio_conservacao` | SIEMACO-SP e sindicatos locais × SEAC-SP | 2019 a 2027 — **19 regiões**, 363 municípios |
+
+> No asseio a convenção varia por região: além da capital (SIEMACO-SP), estão indexadas
+> as CCTs 2026/2027 do SEAC-SP para Araraquara, Bauru, Bebedouro, Campinas, Cubatão,
+> Franca, Guarulhos, Itanhaém, Jundiaí, Marília, Osasco, Piracicaba, Presidente Prudente,
+> Salto, São José do Rio Preto, Suzano, Taboão da Serra e Votuporanga. **Sempre passe
+> `municipio`** nessa categoria.
 
 > **Dica jurídica:** para pegar a CCT correta de um caso, passe `data_fato` = data dos
 > fatos do processo — a API devolve a convenção vigente naquela data.
