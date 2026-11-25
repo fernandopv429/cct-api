@@ -175,6 +175,7 @@ async def buscar(
     categoria: Optional[str] = None,
     data_fato: Optional[date] = None,
     municipio: Optional[str] = None,
+    uf: Optional[str] = None,
     limite: int = 8,
     similaridade_minima: float = SIMILARIDADE_MINIMA_PADRAO,
 ) -> List[Dict[str, Any]]:
@@ -182,6 +183,11 @@ async def buscar(
 
     Município: CCTs estaduais (municipios NULL) sempre entram; as regionais/municipais
     só entram se cobrirem o município informado.
+
+    UF: documento sem uf (NULL) sempre entra — é o legado anterior à coluna.
+    Com uf informada, convenção de OUTRO estado fica de fora. Sem esse filtro,
+    uma consulta de SP receberia cláusula de SC com piso diferente: número
+    real, do lugar errado — o pior erro possível para quem calcula verba.
 
     similaridade_minima: descarta trechos abaixo do corte (0 desliga o filtro).
     """
@@ -198,6 +204,9 @@ async def buscar(
             f"(d.vigencia_inicio IS NULL OR d.vigencia_inicio <= ${idx}) "
             f"AND (d.vigencia_fim IS NULL OR d.vigencia_fim >= ${idx})"
         )
+    if uf and len(uf.strip()) == 2:
+        params.append(uf.strip().upper())
+        condicoes.append(f"(d.uf IS NULL OR d.uf = ${len(params)})")
     if municipio:
         params.append(normalizar_municipio(municipio))
         idx = len(params)
@@ -213,7 +222,7 @@ async def buscar(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""
-            SELECT d.titulo, d.categoria, d.ano_base, d.vigencia_inicio, d.vigencia_fim,
+            SELECT d.titulo, d.categoria, d.uf, d.ano_base, d.vigencia_inicio, d.vigencia_fim,
                    d.sindicato_laboral, d.sindicato_patronal, d.base_territorial,
                    d.abrangencia, d.municipios, d.fonte_url,
                    c.clausula_ref, c.clausula_titulo, c.conteudo,

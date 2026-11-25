@@ -66,6 +66,10 @@ class ConsultaRequest(BaseModel):
     municipio: Optional[str] = Field(
         None, description="Município do caso. CCTs estaduais sempre entram; municipais só se cobrirem"
     )
+    uf: Optional[str] = Field(
+        None, min_length=2, max_length=2,
+        description="UF do caso (SP, SC, RJ, PE...). Convenção de outro estado fica de fora; documento sem UF registrada sempre entra."
+    )
     similaridade_minima: float = Field(
         cct_store.SIMILARIDADE_MINIMA_PADRAO,
         ge=0.0,
@@ -101,7 +105,7 @@ async def consultar(req: ConsultaRequest) -> Dict[str, Any]:
     vetor = await embed_text(req.pergunta)
     resultados: List[Dict[str, Any]] = await cct_store.buscar(
         embedding=vetor, categoria=req.categoria, data_fato=df,
-        municipio=req.municipio, limite=req.limite,
+        municipio=req.municipio, uf=req.uf, limite=req.limite,
         similaridade_minima=req.similaridade_minima,
     )
     resposta: Dict[str, Any] = {
@@ -109,6 +113,7 @@ async def consultar(req: ConsultaRequest) -> Dict[str, Any]:
         "categoria": req.categoria,
         "data_fato": req.data_fato,
         "municipio": req.municipio,
+        "uf": req.uf,
         "similaridade_minima": req.similaridade_minima,
         "total": len(resultados),
         "resultados": resultados,
