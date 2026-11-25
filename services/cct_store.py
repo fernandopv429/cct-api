@@ -236,3 +236,40 @@ async def buscar(
             *params,
         )
     return [dict(r) for r in rows]
+
+
+async def valores(
+    *,
+    categoria: str,
+    uf: str,
+    data_fato: Optional[date] = None,
+    cargo: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Valores das tabelas de cálculo — busca EXATA, não semântica.
+
+    Existe porque piso salarial é número: a busca vetorial devolve o trecho
+    mais parecido, e numa tabela de 20 cargos por 13 colunas o "parecido" pode
+    ser o valor do cargo vizinho. Para quem calcula verba, número plausível e
+    errado é pior do que nenhum.
+    """
+    condicoes = ["categoria = $1", "uf = $2"]
+    params: List[Any] = [categoria, uf.strip().upper()]
+    if data_fato:
+        params.append(data_fato)
+        idx = len(params)
+        condicoes.append(f"vigencia_inicio <= ${idx} AND vigencia_fim >= ${idx}")
+    if cargo:
+        params.append(f"%{cargo.strip()}%")
+        condicoes.append(f"cargo ILIKE ${len(params)}")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT uf, vigencia_inicio, vigencia_fim, cargo, item, valor::float8, fonte
+            FROM cct_valores
+            WHERE {' AND '.join(condicoes)}
+            ORDER BY vigencia_inicio DESC, cargo, item
+            """,
+            *params,
+        )
+    return [dict(r) for r in rows]

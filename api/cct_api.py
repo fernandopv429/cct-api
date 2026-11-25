@@ -125,3 +125,22 @@ async def consultar(req: ConsultaRequest) -> Dict[str, Any]:
             "O assunto pode não estar previsto nesta CCT — não redija sem fundamento."
         )
     return resposta
+
+
+@app.get("/valores", dependencies=[Depends(require_key)])
+async def valores(
+    categoria: str,
+    uf: str,
+    data_fato: Optional[str] = None,
+    cargo: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Valores exatos da tabela de cálculo (piso, horas, adicionais) por cargo/UF/data."""
+    df: Optional[date] = None
+    if data_fato:
+        try:
+            df = date.fromisoformat(data_fato)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="data_fato deve ser AAAA-MM-DD")
+    linhas = await cct_store.valores(categoria=categoria, uf=uf, data_fato=df, cargo=cargo)
+    return {"categoria": categoria, "uf": uf.upper(), "data_fato": data_fato,
+            "cargo": cargo, "total": len(linhas), "valores": linhas}
